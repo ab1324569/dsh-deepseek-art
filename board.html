@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>像素画板 · dsh-pixel-art</title>
+<style>
+  /* 设计规范：白底 + #111 前景，只用黑白灰；强调/选中用反色；圆角 12/8/4；边框 1px；正文 13px */
+  :root {
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #f6f6f6;
+    --line: #e6e6e6;
+    --line-strong: #c9c9c9;
+    --text: #111111;
+    --dim: #777777;
+    --faint: #999999;
+    --r-card: 12px;
+    --r-btn: 8px;
+    --r-chip: 4px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--bg); color: var(--text);
+    font: 13px/1.55 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    display: flex; flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 14px 22px; border-bottom: 1px solid var(--line); flex: none;
+  }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: .2px; }
+  .tag {
+    font-size: 11px; color: var(--dim);
+    border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px;
+  }
+  .hint { margin-left: auto; font-size: 12px; color: var(--faint); }
+
+  main {
+    flex: 1; display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 14px; padding: 16px 20px 22px; align-items: start;
+  }
+  .stage-card { grid-column: 1; grid-row: 1; padding: 14px; min-width: 0; }
+  .gallery-card { grid-column: 1; grid-row: 2; }
+  aside { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 14px; }
+
+  .canvas-viewport {
+    width: 100%; max-height: calc(100vh - 230px); overflow: auto;
+    border: 1px solid var(--line); border-radius: var(--r-chip);
+    background: #ffffff;
+  }
+  .canvas-wrap {
+    position: relative; width: 480px; height: 480px;
+    cursor: crosshair; touch-action: none;
+    background-color: #ffffff;
+    background-image: repeating-conic-gradient(#f5f5f5 0% 25%, #ffffff 0% 50%);
+    background-size: 16px 16px; background-position: 50% 50%;
+  }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-card); padding: 14px; }
+  .card h2 {
+    margin: 0 0 10px; font-size: 11px; font-weight: 600; color: var(--dim);
+    letter-spacing: 1px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card h2 .count {
+    color: var(--text); font-weight: 400; letter-spacing: 0;
+    font-size: 11px; text-transform: none; margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .canvas-wrap canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+  #cv { image-rendering: pixelated; }
+  #ov { pointer-events: none; }
+
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row + .row { margin-top: 8px; }
+  .seg button { flex: 1; min-width: 0; }
+  .seg-sm button { flex: 0 0 40px; }
+  .label { font-size: 12px; color: var(--dim); }
+
+  button {
+    height: 32px; padding: 0 12px;
+    font: 12.5px/1 inherit; font-family: inherit;
+    color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: var(--r-btn);
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    cursor: pointer; transition: background .12s, border-color .12s, color .12s, transform .06s;
+  }
+  button:hover:not(:disabled) { background: #efefef; border-color: var(--line-strong); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .4; cursor: default; }
+  button:focus-visible { outline: 2px solid #111111; outline-offset: 2px; }
+  button.on, button.primary { background: #111111; border-color: #111111; color: #ffffff; }
+  button.on:hover:not(:disabled), button.primary:hover:not(:disabled) { background: #000000; border-color: #000000; }
+
+  select {
+    height: 32px; padding: 0 8px;
+    font-family: inherit; font-size: 12.5px;
+    color: var(--text); background: #ffffff;
+    border: 1px solid var(--line); border-radius: var(--r-btn); cursor: pointer;
+  }
+  select:focus-visible { outline: 2px solid #111111; outline-offset: 2px; }
+
+  .palette { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .palette .swatch {
+    width: 100%; height: auto; min-width: 0; aspect-ratio: 1;
+    padding: 0; border-radius: var(--r-chip);
+    border: 1px solid rgba(0, 0, 0, .16); background: #ffffff; transform: none;
+    transition: transform .08s, border-color .12s;
+  }
+  .palette .swatch:hover { transform: scale(1.08); border-color: rgba(0, 0, 0, .42); }
+  .palette .swatch:active { transform: scale(1.08); }
+  .palette .swatch.on { box-shadow: inset 0 0 0 2px #ffffff, inset 0 0 0 4px #111111; }
+
+  .pick-row { margin-top: 12px; }
+  input[type=color] {
+    width: 40px; height: 32px; padding: 0; background: #ffffff;
+    border: 1px solid var(--line); border-radius: var(--r-btn); cursor: pointer;
+  }
+  input[type=color]::-webkit-color-swatch-wrapper { padding: 3px; }
+  input[type=color]::-webkit-color-swatch { border: 0; border-radius: var(--r-chip); }
+  .hex {
+    margin-left: auto; font: 12px/1 ui-monospace, Consolas, monospace;
+    color: var(--dim); letter-spacing: .4px; font-variant-numeric: tabular-nums;
+  }
+
+  .meta { font-size: 12px; color: var(--dim); margin-top: 8px; }
+  .meta.tiny { font-size: 11px; color: var(--faint); margin-top: 4px; }
+  .meta code, .tiny code {
+    font: 11px ui-monospace, Consolas, monospace;
+    border: 1px solid var(--line); border-radius: var(--r-chip); padding: 0 3px;
+  }
+
+  input[type=range] { flex: 1; min-width: 80px; accent-color: #111111; }
+  .size { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); margin-top: 10px; }
+  .size span { font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+
+  textarea {
+    width: 100%; height: 88px; resize: vertical; padding: 8px 10px;
+    background: #ffffff; color: var(--text);
+    border: 1px solid var(--line); border-radius: var(--r-btn);
+    font: 11.5px/1.45 ui-monospace, Consolas, monospace;
+  }
+  textarea.short { height: 56px; font-family: inherit; font-size: 13px; line-height: 1.5; }
+  textarea::placeholder { color: #aaaaaa; }
+  textarea:focus-visible { outline: 2px solid #111111; outline-offset: 1px; }
+
+  .gallery { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 6px; min-height: 104px; }
+  .gallery::-webkit-scrollbar { height: 6px; }
+  .gallery::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, .18); border-radius: 3px; }
+  .thumb {
+    position: relative; flex: 0 0 auto; width: 96px; padding: 6px;
+    border: 1px solid var(--line); border-radius: var(--r-btn); background: #ffffff;
+    cursor: pointer; transition: border-color .12s;
+  }
+  .thumb:hover, .thumb:focus-visible { border-color: var(--line-strong); }
+  .thumb:focus-visible { outline: 2px solid #111111; outline-offset: 2px; }
+  .thumb img {
+    display: block; width: 100%; aspect-ratio: 1;
+    image-rendering: pixelated; border-radius: var(--r-chip); background: #ffffff;
+  }
+  .thumb-foot { display: flex; align-items: center; margin-top: 5px; min-height: 14px; }
+  .thumb-time { font-size: 10px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .thumb-del {
+    position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; padding: 0;
+    border-radius: var(--r-chip); background: rgba(255, 255, 255, .94);
+    border: 1px solid var(--line); opacity: 0; transition: opacity .12s, background .12s, color .12s;
+  }
+  .thumb:hover .thumb-del, .thumb:focus-within .thumb-del { opacity: 1; }
+  .thumb-del:hover { background: #111111; border-color: #111111; color: #ffffff; }
+  .empty { color: var(--faint); font-size: 12.5px; padding: 28px 4px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; z-index: 9;
+    transform: translateX(-50%) translateY(14px);
+    background: #111111; color: #ffffff;
+    padding: 8px 16px; border-radius: 999px; font-size: 12.5px;
+    max-width: 80vw; text-align: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity .18s, transform .18s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+    aside { grid-column: 1; grid-row: auto; }
+    .stage-card { grid-row: auto; }
+    .gallery-card { grid-row: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+    .palette .swatch:hover { transform: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>像素画板</h1>
+  <span class="tag">dsh-pixel-art</span>
+  <span class="hint">拖拽作画 · 右键擦除 · Ctrl+Z 撤销 · 画完点「存进画廊」</span>
+</header>
+
+<main>
+  <div class="card stage-card">
+    <div class="canvas-viewport" id="viewport">
+      <div class="canvas-wrap" id="wrap">
+        <canvas id="cv" width="32" height="32" aria-label="像素画布"></canvas>
+        <canvas id="ov" aria-hidden="true"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <aside>
+    <div class="card">
+      <h2>调色板 <span class="count" id="colorHex">#FFFFFF</span></h2>
+      <div class="palette" id="palette" role="group" aria-label="调色板"></div>
+      <div class="row pick-row">
+        <input type="color" id="picker" value="#ffffff" aria-label="自定义颜色">
+        <span class="meta" style="margin:0">点色块，或自选颜色</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>工具</h2>
+      <div class="row seg" id="tools">
+        <button type="button" class="on" data-tool="pen" title="画笔 (B)">画笔</button>
+        <button type="button" data-tool="eraser" title="橡皮 (E)">橡皮</button>
+        <button type="button" data-tool="picker" title="吸管 (I)">吸管</button>
+      </div>
+      <div class="row">
+        <span class="label">粗细</span>
+        <div class="row seg seg-sm" id="brush" style="gap:6px">
+          <button type="button" data-brush="1" class="on" title="1 格 ([)">1</button>
+          <button type="button" data-brush="2" title="2 格">2</button>
+          <button type="button" data-brush="3" title="3 格 (])">3</button>
+        </div>
+        <button type="button" id="gridToggle" class="on" title="网格线 (G)" style="flex:1">网格</button>
+      </div>
+      <div class="row">
+        <button type="button" id="undo" disabled title="撤销 (Ctrl+Z)" style="flex:1">撤销</button>
+        <button type="button" id="redo" disabled title="重做 (Ctrl+Shift+Z)" style="flex:1">重做</button>
+      </div>
+      <div class="meta" id="cursorInfo">网格 32×32 · 悬停看坐标</div>
+    </div>
+
+    <div class="card">
+      <h2>画布</h2>
+      <div class="row">
+        <span class="label">尺寸</span>
+        <select id="sizeSel" aria-label="画布尺寸">
+          <option value="16">16 × 16</option>
+          <option value="32" selected>32 × 32</option>
+          <option value="64">64 × 64</option>
+          <option value="128">128 × 128</option>
+          <option value="256">256 × 256</option>
+          <option value="512">512 × 512</option>
+          <option value="1024">1024 × 1024</option>
+        </select>
+        <button type="button" id="zoomFit" style="flex:1" title="按窗口宽度自适应">适应</button>
+      </div>
+      <div class="row">
+        <span class="label">缩放</span>
+        <button type="button" id="zoomOut" title="缩小" style="flex:0 0 36px">−</button>
+        <span class="label" id="zoomLabel" style="min-width:36px;text-align:center">1×</span>
+        <button type="button" id="zoomIn" title="放大" style="flex:0 0 36px">+</button>
+      </div>
+      <div class="row">
+        <button type="button" id="clear" style="flex:1">清空</button>
+        <button type="button" id="export" style="flex:1">导出 PNG</button>
+      </div>
+      <div class="row">
+        <button type="button" id="save" class="primary" style="flex:1">存进画廊</button>
+      </div>
+      <label class="size">放大倍数
+        <input type="range" id="scale" min="4" max="32" value="16">
+        <span id="scaleVal">16×</span>
+      </label>
+      <div class="meta tiny">1024 格适合导入和放大看，手绘建议 ≤256</div>
+    </div>
+
+    <div class="card">
+      <h2>网格数据</h2>
+      <textarea id="dump" spellcheck="false" placeholder='点「复制网格」拿到 JSON，或者把模型给的 JSON 贴进来点「载入」'></textarea>
+      <div class="row">
+        <button type="button" id="loadGrid" style="flex:1">载入网格</button>
+        <button type="button" id="copy" style="flex:1">复制网格</button>
+      </div>
+      <div class="meta tiny">空格 = 透明，<code>.</code> = 天蓝</div>
+    </div>
+
+    <div class="card">
+      <h2>AI 画</h2>
+      <textarea id="aiPrompt" class="short" spellcheck="false" placeholder="想让 AI 画什么？比如：一只橘猫蹲在蛋糕店门口"></textarea>
+      <div class="row">
+        <button type="button" id="aiCopy" class="primary" style="flex:1">复制给 AI</button>
+      </div>
+      <div class="meta tiny">贴到对话里发出去就行。没生图能力的模型也能画——它给形状和精灵，渲染在本地，画完自动进画廊。</div>
+    </div>
+  </aside>
+
+  <div class="card gallery-card">
+    <h2>画廊 <span class="count" id="galleryCount"></span></h2>
+    <div class="gallery" id="gallery"><div class="empty">还没有作品，画一张存进来试试</div></div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const BASE = '/dsh-pixel-art'
+// 被 DSH 的 iframe 内嵌时（?embed=1），去掉自己的页头，避免和外层标题重复
+const EMBED = new URLSearchParams(location.search).get('embed') === '1'
+if (EMBED) {
+  const hd = document.querySelector('header')
+  if (hd) hd.hidden = true
+  const m = document.querySelector('main')
+  if (m) m.style.padding = '12px 14px 16px'
+}
+
+const PALETTE = [
+  ['#8ec9ff','.'], ['#d6ecff','-'], ['#ffffff',','], ['#5fa73a','#'],
+  ['#4a8a2e','%'], ['#8b5a2b','='], ['#6f4722','_'], ['#6b4423','+'],
+  ['#3f8f2e','o'], ['#4fa03a','O'], ['#a83c2c','R'], ['#8a2f22','r'],
+  ['#2a2a2a','B'], ['#e8b48a','S'], ['#4a3524','H'], ['#3b7fd4','T'],
+  ['#5a4a3a','P'], ['#9aa0a6','G'], ['#ffe066','Y'], ['#c89b6a','k'],
+  ['#b0845a','K'], ['#8fd0ff','v'], ['#f7c6a3','n'], ['#d8a3c0','m'],
+  ['#e2504a','Q'], ['#5ac1d8','L'], ['#8f6b3d','U'], ['#272727','Z']
+]
+const DEFAULT_MAP = Object.fromEntries(PALETTE.map(([hex, ch]) => [ch, hex]))
+const CHAR_OF = Object.fromEntries(PALETTE.map(([hex, ch]) => [hex.toLowerCase(), ch]))
+// 自选颜色用的备用字符（避开默认调色板与空格）
+const EXTRA = '0123456789!@$&*()[]{};:<>=?/|^~'.split('').filter((c) => !DEFAULT_MAP[c])
+const extraOf = new Map()
+
+const rgbCache = new Map()
+function rgbOf(hex) {
+  const key = String(hex).toLowerCase()
+  let v = rgbCache.get(key)
+  if (!v) {
+    const n = parseInt(key.slice(1), 16) || 0
+    v = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+    rgbCache.set(key, v)
+  }
+  return v
+}
+function nearestChar(hex) {
+  const [r, g, b] = rgbOf(hex)
+  let best = 'W'
+  let bestD = Infinity
+  for (const [ch, h] of Object.entries(DEFAULT_MAP)) {
+    const [r2, g2, b2] = rgbOf(h)
+    const d = (r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2
+    if (d < bestD) { bestD = d; best = ch }
+  }
+  return best
+}
+function charForHex(hex) {
+  const key = String(hex).toLowerCase()
+  if (CHAR_OF[key]) return CHAR_OF[key]
+  if (extraOf.has(key)) return extraOf.get(key)
+  const used = new Set(Object.keys(DEFAULT_MAP))
+  for (const ch of extraOf.values()) used.add(ch)
+  const ch = EXTRA.find((c) => !used.has(c))
+  if (!ch) return nearestChar(key)
+  extraOf.set(key, ch)
+  return ch
+}
+function palettePayload() {
+  const out = {}
+  for (const [hex, ch] of extraOf) out[ch] = hex
+  return out
+}
+
+const cv = document.getElementById('cv')
+const ov = document.getElementById('ov')
+const wrap = document.getElementById('wrap')
+const cctx = cv.getContext('2d')
+const octx = ov.getContext('2d')
+const dump = document.getElementById('dump')
+const toastEl = document.getElementById('toast')
+const cursorInfo = document.getElementById('cursorInfo')
+const undoBtn = document.getElementById('undo')
+const redoBtn = document.getElementById('redo')
+const scaleEl = document.getElementById('scale')
+const scaleVal = document.getElementById('scaleVal')
+const colorHex = document.getElementById('colorHex')
+const picker = document.getElementById('picker')
+const gridBtn = document.getElementById('gridToggle')
+const viewport = document.getElementById('viewport')
+const sizeSel = document.getElementById('sizeSel')
+const zoomLabel = document.getElementById('zoomLabel')
+
+const DRAFT_KEY = 'dsh-pixel-art:draft:v2'
+let size = 32
+let grid = emptyGrid(32)
+let color = '#ffffff'
+let tool = 'pen'
+let brush = 1
+let showGrid = true
+let hover = null
+let drawing = false
+let lastCell = null
+let ovDpr = 1
+let imgData = null
+let draftTimer = 0
+let zoom = 1
+let fitMode = true
+let overlayOff = false
+let lastFitWidth = 0
+const history = { undo: [], redo: [] }
+
+function emptyGrid(n) {
+  return Array.from({ length: n }, () => new Array(n).fill(null))
+}
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag)
+  if (cls) node.className = cls
+  if (text != null) node.textContent = text
+  return node
+}
+
+function toast(msg) {
+  toastEl.textContent = msg
+  toastEl.classList.add('show')
+  clearTimeout(toastEl._t)
+  toastEl._t = setTimeout(() => toastEl.classList.remove('show'), 1600)
+}
+
+function notifyParent() {
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'dsh-pixel-art:changed' }, location.origin)
+    }
+  } catch { /* 独立页里没有父窗口 */ }
+}
+
+/* ---------------- 画布 ---------------- */
+
+function syncCanvas() {
+  if (cv.width !== size) { cv.width = size; cv.height = size; imgData = null }
+  resizeOverlay()
+  drawCanvas()
+}
+
+function drawCanvas() {
+  if (!imgData || imgData.width !== size) imgData = cctx.createImageData(size, size)
+  const data = imgData.data
+  data.fill(0)
+  for (let y = 0; y < size; y++) {
+    const row = grid[y]
+    for (let x = 0; x < size; x++) {
+      const hex = row[x]
+      if (!hex) continue
+      const [r, g, b] = rgbOf(hex)
+      const i = (y * size + x) * 4
+      data[i] = r
+      data[i + 1] = g
+      data[i + 2] = b
+      data[i + 3] = 255
+    }
+  }
+  cctx.putImageData(imgData, 0, 0)
+}
+
+function resizeOverlay() {
+  const rect = wrap.getBoundingClientRect()
+  const dpr = Math.min(2, window.devicePixelRatio || 1)
+  const w = Math.max(1, Math.round(rect.width * dpr))
+  const h = Math.max(1, Math.round(rect.height * dpr))
+  ovDpr = dpr
+  overlayOff = w > 2048 || h > 2048
+  if (overlayOff) {
+    if (ov.width !== 1) { ov.width = 1; ov.height = 1 }
+    return
+  }
+  if (ov.width !== w || ov.height !== h) { ov.width = w; ov.height = h }
+  drawOverlay()
+}
+
+function drawOverlay() {
+  if (overlayOff) return
+  const w = ov.width
+  const h = ov.height
+  octx.clearRect(0, 0, w, h)
+  const cell = w / size
+  const line = Math.max(1, Math.round(ovDpr))
+  if (showGrid && cell >= 7) {
+    octx.strokeStyle = 'rgba(17,17,17,.12)'
+    octx.lineWidth = line
+    octx.beginPath()
+    for (let i = 1; i < size; i++) {
+      const p = Math.round(i * cell) + (line % 2 ? 0.5 : 0)
+      octx.moveTo(p, 0)
+      octx.lineTo(p, h)
+      octx.moveTo(0, p)
+      octx.lineTo(w, p)
+    }
+    octx.stroke()
+  }
+  if (hover) {
+    const b = tool === 'picker' ? 1 : brush
+    const x0 = Math.min(size - b, hover.x)
+    const y0 = Math.min(size - b, hover.y)
+    const px = Math.round(x0 * cell)
+    const py = Math.round(y0 * cell)
+    const pw = Math.max(1, Math.round(b * cell))
+    octx.fillStyle = 'rgba(17,17,17,.10)'
+    octx.fillRect(px, py, pw, pw)
+    octx.strokeStyle = '#111111'
+    octx.lineWidth = Math.max(1.5, line * 1.5)
+    octx.strokeRect(px + line / 2, py + line / 2, Math.max(1, pw - line), Math.max(1, pw - line))
+  }
+}
+
+function applyZoom(next, fit) {
+  zoom = Math.max(1, Math.min(32, Math.floor(next) || 1))
+  fitMode = Boolean(fit)
+  wrap.style.width = (size * zoom) + 'px'
+  wrap.style.height = (size * zoom) + 'px'
+  zoomLabel.textContent = zoom + '×'
+  resizeOverlay()
+  drawOverlay()
+}
+
+function fitZoom() {
+  const vw = viewport && viewport.clientWidth ? viewport.clientWidth - 8 : 560
+  lastFitWidth = vw
+  applyZoom(Math.max(1, Math.min(32, Math.floor(vw / size))), true)
+}
+
+function cellOf(e) {
+  const rect = cv.getBoundingClientRect()
+  const x = Math.floor(((e.clientX - rect.left) / rect.width) * size)
+  const y = Math.floor(((e.clientY - rect.top) / rect.height) * size)
+  if (x < 0 || y < 0 || x >= size || y >= size) return null
+  return { x, y }
+}
+
+function updateHover(c) {
+  if (!c) {
+    if (hover) { hover = null; drawOverlay(); updateInfo() }
+    return
+  }
+  if (hover && hover.x === c.x && hover.y === c.y) return
+  hover = c
+  drawOverlay()
+  updateInfo()
+}
+
+function updateInfo() {
+  const base = '网格 ' + size + '×' + size
+  if (!hover) {
+    cursorInfo.textContent = base + ' · 悬停看坐标'
+    return
+  }
+  const name = tool === 'pen' ? '画笔' : tool === 'eraser' ? '橡皮' : '吸管'
+  const extra = tool === 'pen' ? ' · ' + brush + 'px' : ''
+  cursorInfo.textContent = base + ' · (' + hover.x + ', ' + hover.y + ') · ' + name + extra
+}
+
+/* ---------------- 画 ---------------- */
+
+function stamp(x, y, activeTool, changes) {
+  if (x < 0 || y < 0 || x >= size || y >= size) return
+  if (activeTool === 'picker') {
+    const hex = grid[y][x]
+    if (hex) setColor(hex)
+    return
+  }
+  for (let dy = 0; dy < brush; dy++) {
+    for (let dx = 0; dx < brush; dx++) {
+      const px = x + dx
+      const py = y + dy
+      if (px >= size || py >= size) continue
+      const next = activeTool === 'eraser' ? null : color
+      if (grid[py][px] !== next) {
+        grid[py][px] = next
+        changes.push(px, py, next)
+      }
+    }
+  }
+}
+
+// 两点之间补线，快速拖动也不会断
+function stampLine(a, b, activeTool, changes) {
+  let x0 = a.x
+  let y0 = a.y
+  const x1 = b.x
+  const y1 = b.y
+  const dx = Math.abs(x1 - x0)
+  const sx = x0 < x1 ? 1 : -1
+  const dy = -Math.abs(y1 - y0)
+  const sy = y0 < y1 ? 1 : -1
+  let err = dx + dy
+  for (;;) {
+    stamp(x0, y0, activeTool, changes)
+    if (x0 === x1 && y0 === y1) break
+    const e2 = 2 * err
+    if (e2 >= dy) { err += dy; x0 += sx }
+    if (e2 <= dx) { err += dx; y0 += sy }
+  }
+}
+
+// 只重画改过的格子：1024 格全量重绘太慢，这里走 1:1 的 fillRect
+function paintChanges(changes) {
+  for (let i = 0; i < changes.length; i += 3) {
+    const x = changes[i]
+    const y = changes[i + 1]
+    const hex = changes[i + 2]
+    if (hex) {
+      cctx.fillStyle = hex
+      cctx.fillRect(x, y, 1, 1)
+    } else {
+      cctx.clearRect(x, y, 1, 1)
+    }
+  }
+}
+
+/* ---------------- 撤销 / 重做 ---------------- */
+
+function snapshot() {
+  return { size, grid: grid.map((row) => row.slice()) }
+}
+
+function pushHistory() {
+  history.undo.push(snapshot())
+  const area = size * size
+  const limit = Math.max(3, Math.min(60, Math.floor(3000000 / area)))
+  while (history.undo.length > limit) history.undo.shift()
+  history.redo.length = 0
+  syncHistory()
+}
+
+function syncHistory() {
+  undoBtn.disabled = history.undo.length === 0
+  redoBtn.disabled = history.redo.length === 0
+}
+
+function restoreSnap(snap) {
+  const changed = snap.size !== size
+  size = snap.size
+  grid = snap.grid.map((row) => row.slice())
+  hover = null
+  syncCanvas()
+  syncSizeSelect()
+  if (changed) fitZoom()
+  updateInfo()
+  autosaveDraft()
+}
+
+function undo() {
+  if (!history.undo.length) return
+  history.redo.push(snapshot())
+  restoreSnap(history.undo.pop())
+  syncHistory()
+}
+
+function redo() {
+  if (!history.redo.length) return
+  history.undo.push(snapshot())
+  restoreSnap(history.redo.pop())
+  syncHistory()
+}
+
+/* ---------------- 调色 / 工具 ---------------- */
+
+function buildPalette() {
+  const box = document.getElementById('palette')
+  box.replaceChildren()
+  for (const [hex] of PALETTE) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'swatch'
+    btn.dataset.hex = hex.toLowerCase()
+    btn.style.background = hex
+    btn.title = hex.toUpperCase()
+    btn.setAttribute('aria-label', '颜色 ' + hex.toUpperCase())
+    btn.onclick = () => setColor(hex)
+    box.appendChild(btn)
+  }
+}
+
+function setColor(hex) {
+  color = String(hex).toLowerCase()
+  picker.value = color
+  colorHex.textContent = color.toUpperCase()
+  document.querySelectorAll('.palette .swatch').forEach((s) => {
+    s.classList.toggle('on', s.dataset.hex === color)
+  })
+}
+
+function setTool(t) {
+  tool = t
+  document.querySelectorAll('[data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === t))
+  cv.style.cursor = t === 'picker' ? 'copy' : 'crosshair'
+  drawOverlay()
+  updateInfo()
+}
+
+function setBrush(n) {
+  brush = Math.max(1, Math.min(3, n))
+  document.querySelectorAll('[data-brush]').forEach((b) => b.classList.toggle('on', Number(b.dataset.brush) === brush))
+  drawOverlay()
+  updateInfo()
+}
+
+function toggleGrid() {
+  showGrid = !showGrid
+  gridBtn.classList.toggle('on', showGrid)
+  drawOverlay()
+}
+
+function updateScaleLabel() {
+  scaleVal.textContent = scaleEl.value + '×'
+}
+
+/* ---------------- 画布尺寸 / 清空 / 导出 ---------------- */
+
+function syncSizeSelect() {
+  sizeSel.value = String(size)
+}
+
+function applySize(n) {
+  if (n === size) return
+  pushHistory()
+  const old = grid
+  const oldSize = size
+  size = n
+  grid = emptyGrid(n)
+  const keep = Math.min(n, oldSize)
+  for (let y = 0; y < keep; y++) {
+    for (let x = 0; x < keep; x++) grid[y][x] = old[y][x]
+  }
+  hover = null
+  syncCanvas()
+  syncSizeSelect()
+  fitZoom()
+  updateInfo()
+  autosaveDraft()
+}
+
+function clearCanvas() {
+  if (!confirm('清空画布？')) return
+  pushHistory()
+  grid = emptyGrid(size)
+  hover = null
+  drawCanvas()
+  drawOverlay()
+  autosaveDraft()
+  toast('已清空')
+}
+
+function maxExportScale() {
+  const MAX_OUT_PIXELS = 8 * 1024 * 1024
+  return Math.max(1, Math.min(32, Math.floor(Math.sqrt(MAX_OUT_PIXELS / (size * size)))))
+}
+
+function exportPng() {
+  const asked = Math.max(1, Math.min(32, Math.floor(Number(scaleEl.value) || 16)))
+  const factor = Math.min(asked, maxExportScale())
+  if (factor < asked) toast('画布太大，导出倍数压到 ' + factor + '×')
+  const off = document.createElement('canvas')
+  off.width = size * factor
+  off.height = size * factor
+  const o = off.getContext('2d')
+  o.imageSmoothingEnabled = false
+  o.drawImage(cv, 0, 0, off.width, off.height)
+  const a = document.createElement('a')
+  a.href = off.toDataURL('image/png')
+  a.download = 'pixel-art-' + size + 'x' + size + '-' + Date.now() + '.png'
+  a.click()
+  toast('已导出 ' + off.width + '×' + off.height)
+}
+
+/* ---------------- 网格互转 ---------------- */
+
+function gridToChars() {
+  return grid.map((row) => row.map((c) => (c ? charForHex(c) : ' ')).join(''))
+}
+
+function gridPayload() {
+  const rows = gridToChars()
+  return JSON.stringify({ version: 2, size, grid: rows, palette: palettePayload() }, null, 0)
+}
+
+function copyGrid() {
+  const text = gridPayload()
+  dump.value = text
+  const fallback = () => {
+    dump.focus()
+    dump.select()
+    toast('剪贴板不可用，已选中文本，Ctrl+C 复制')
+  }
+  try {
+    navigator.clipboard.writeText(text).then(() => toast('网格已复制'), fallback)
+  } catch {
+    fallback()
+  }
+}
+
+function copyAiPrompt() {
+  const box = document.getElementById('aiPrompt')
+  const idea = (box.value || '').trim() || '一只橘猫蹲在蛋糕店门口'
+  const text = '用 draw_pixel_scene 画一张像素画：' + idea + '。画布 32×32，构图自己安排，画完存进画廊。'
+  const fallback = () => {
+    dump.value = text
+    dump.focus()
+    dump.select()
+    toast('剪贴板不可用，指令已经放进上面的框里')
+  }
+  try {
+    navigator.clipboard.writeText(text).then(() => toast('指令已复制，贴到对话里发出去就行'), fallback)
+  } catch {
+    fallback()
+  }
+}
+
+function parseGridInput(text) {
+  const t = String(text || '').trim()
+  if (!t) throw new Error('先贴一段网格 JSON 或字符行')
+  let obj = null
+  try { obj = JSON.parse(t) } catch { obj = null }
+  if (Array.isArray(obj)) return { rows: obj.map((r) => String(r)), palette: {}, version: 2 }
+  if (obj && typeof obj === 'object') {
+    const rows = Array.isArray(obj.grid) ? obj.grid : null
+    if (!rows) throw new Error('JSON 里没有 grid 数组')
+    // 老版本的复制结果只有 {size, grid}，那时候 "." 当透明；新版本会带 version:2
+    const version = obj.version === 1 ? 1 : obj.version === 2 ? 2 : (obj.palette ? 2 : 1)
+    return {
+      rows: rows.map((r) => String(r)),
+      palette: obj.palette && typeof obj.palette === 'object' ? obj.palette : {},
+      version,
+    }
+  }
+  if (obj !== null) throw new Error('贴进来的不是网格 JSON')
+  const rows = t.split(/\r?\n/)
+    .filter((line) => line.length > 0)
+    .map((line) => line.replace(/^\s*["']/, '').replace(/["'],?\s*$/, ''))
+  if (!rows.length) throw new Error('没读到有效的网格行')
+  return { rows, palette: {}, version: 2 }
+}
+
+function loadRows(rows, palette, version, opts) {
+  const record = !opts || opts.record !== false
+  if (!Array.isArray(rows) || !rows.length) throw new Error('网格是空的')
+  const n = rows.length
+  for (const row of rows) {
+    if (typeof row !== 'string' || row.length !== n) throw new Error('网格要正方形：每行长度必须等于行数（' + n + '）')
+  }
+  const map = Object.assign({}, DEFAULT_MAP, palette || {})
+  for (const [ch, hex] of Object.entries(palette || {})) {
+    if (typeof hex !== 'string') continue
+    const key = hex.toLowerCase()
+    if (/^#[0-9a-f]{6}$/.test(key) && !extraOf.has(key)) extraOf.set(key, ch)
+  }
+  const blank = version === 1 ? '.' : ' '
+  if (record) pushHistory()
+  size = n
+  grid = rows.map((row) => Array.from({ length: n }, (_, x) => {
+    const ch = row[x]
+    if (ch === blank) return null
+    const hex = map[ch]
+    return typeof hex === 'string' ? hex : null
+  }))
+  hover = null
+  syncCanvas()
+  syncSizeSelect()
+  fitZoom()
+  updateInfo()
+  autosaveDraft()
+}
+
+function loadFromDump() {
+  try {
+    const parsed = parseGridInput(dump.value)
+    loadRows(parsed.rows, parsed.palette, parsed.version)
+    toast('已载入 ' + size + '×' + size)
+  } catch (error) {
+    toast('载入失败：' + (error && error.message ? error.message : error))
+  }
+}
+
+/* ---------------- 画廊 ---------------- */
+
+function relTime(ms) {
+  if (!ms) return '—'
+  const diff = Date.now() - ms
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return '刚刚'
+  if (m < 60) return m + ' 分钟前'
+  const h = Math.floor(m / 60)
+  if (h < 24) return h + ' 小时前'
+  const d = Math.floor(h / 24)
+  if (d === 1) return '昨天'
+  const dt = new Date(ms)
+  const now = new Date()
+  if (dt.getFullYear() === now.getFullYear()) return (dt.getMonth() + 1) + '月' + dt.getDate() + '日'
+  return dt.getFullYear() + '/' + (dt.getMonth() + 1) + '/' + dt.getDate()
+}
+
+function thumbEl(item) {
+  const box = el('div', 'thumb')
+  box.tabIndex = 0
+  box.title = item.name
+  const img = document.createElement('img')
+  img.src = BASE + '/img/' + encodeURIComponent(item.png)
+  img.alt = ''
+  img.loading = 'lazy'
+  img.decoding = 'async'
+  const foot = el('div', 'thumb-foot')
+  foot.appendChild(el('span', 'thumb-time', relTime(item.mtime)))
+  const del = document.createElement('button')
+  del.type = 'button'
+  del.className = 'thumb-del'
+  del.title = '删除这张'
+  del.setAttribute('aria-label', '删除这张')
+  del.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5h11M6 4.5V3h4v1.5M4.5 4.5l.6 8h5.8l.6-8"/></svg>'
+  del.onclick = (e) => { e.stopPropagation(); removeItem(item) }
+  box.append(img, foot, del)
+  const open = () => loadItem(item)
+  box.addEventListener('click', open)
+  box.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() }
+  })
+  return box
+}
+
+async function loadGallery() {
+  const box = document.getElementById('gallery')
+  const countEl = document.getElementById('galleryCount')
+  try {
+    const res = await fetch(BASE + '/api/list', { cache: 'no-store' })
+    const json = await res.json()
+    const items = Array.isArray(json.items) ? json.items : []
+    countEl.textContent = items.length ? items.length + ' 张' : ''
+    box.replaceChildren()
+    if (!items.length) {
+      box.appendChild(el('div', 'empty', '还没有作品，画一张存进来试试'))
+      return
+    }
+    for (const item of items) box.appendChild(thumbEl(item))
+  } catch {
+    countEl.textContent = ''
+    box.replaceChildren(el('div', 'empty', '画廊读取失败，刷新再试'))
+  }
+}
+
+async function loadItem(item) {
+  if (!item.hasGrid) { toast('这张只存了图片，没有网格数据'); return }
+  try {
+    const res = await fetch(BASE + '/img/' + encodeURIComponent(item.name + '.json'), { cache: 'no-store' })
+    const data = await res.json()
+    // v1 作品没有 version 字段，"." 当透明；v2 才把 "." 当天蓝色
+    const version = data.version === 2 ? 2 : 1
+    loadRows(data.grid, data.palette && typeof data.palette === 'object' ? data.palette : {}, version)
+    if (Number(data.scale) >= 4 && Number(data.scale) <= 32) {
+      scaleEl.value = String(data.scale)
+      updateScaleLabel()
+    }
+    toast('已载入 ' + item.name)
+  } catch (error) {
+    toast('载入失败：' + (error && error.message ? error.message : error))
+  }
+}
+
+async function removeItem(item) {
+  if (!confirm('删除这张像素画？删了就找不回来了')) return
+  try {
+    const res = await fetch(BASE + '/api/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: item.name }),
+    })
+    const json = await res.json()
+    if (!json.ok) throw new Error(json.error || '删除失败')
+    toast('已删除')
+    notifyParent()
+    loadGallery()
+  } catch (error) {
+    toast('删除失败：' + (error && error.message ? error.message : error))
+  }
+}
+
+async function saveToGallery() {
+  const btn = document.getElementById('save')
+  if (btn.disabled) return
+  btn.disabled = true
+  try {
+    const rows = gridToChars()
+    const res = await fetch(BASE + '/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        version: 2,
+        grid: rows,
+        palette: palettePayload(),
+        scale: Math.max(1, Math.min(32, Math.floor(Number(scaleEl.value) || 16))),
+      }),
+    })
+    const json = await res.json()
+    if (!json.ok) throw new Error(json.error || '保存失败')
+    toast('已存进画廊')
+    notifyParent()
+    loadGallery()
+  } catch (error) {
+    toast('保存失败：' + (error && error.message ? error.message : error))
+  } finally {
+    btn.disabled = false
+  }
+}
+
+/* ---------------- 草稿 ---------------- */
+
+function autosaveDraft() {
+  clearTimeout(draftTimer)
+  // 大画布的草稿太重，别把 localStorage 撑爆
+  if (size * size > 262144) return
+  draftTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        size,
+        grid: gridToChars(),
+        palette: palettePayload(),
+      }))
+    } catch { /* 隐私模式或配额满了就放弃 */ }
+  }, 400)
+}
+
+function restoreDraft() {
+  let raw = null
+  try { raw = localStorage.getItem(DRAFT_KEY) } catch { return false }
+  if (!raw) return false
+  try {
+    const data = JSON.parse(raw)
+    if (!data || !Array.isArray(data.grid) || !data.grid.length) return false
+    loadRows(data.grid, data.palette && typeof data.palette === 'object' ? data.palette : {}, 2, { record: false })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/* ---------------- 事件 ---------------- */
+
+cv.addEventListener('pointerdown', (e) => {
+  const c = cellOf(e)
+  if (!c) return
+  e.preventDefault()
+  const activeTool = e.button === 2 ? 'eraser' : tool
+  if (activeTool !== 'picker') pushHistory()
+  drawing = true
+  lastCell = c
+  try { cv.setPointerCapture(e.pointerId) } catch { /* 老环境不支持就算了 */ }
+  const changes = []
+  stamp(c.x, c.y, activeTool, changes)
+  if (changes.length) paintChanges(changes)
+  updateHover(c)
+})
+
+cv.addEventListener('pointermove', (e) => {
+  const c = cellOf(e)
+  if (!c) { updateHover(null); return }
+  if (drawing) {
+    const activeTool = (e.buttons & 2) ? 'eraser' : tool
+    const changes = []
+    if (activeTool === 'picker') stamp(c.x, c.y, 'picker', changes)
+    else if (lastCell) stampLine(lastCell, c, activeTool, changes)
+    else stamp(c.x, c.y, activeTool, changes)
+    lastCell = c
+    if (changes.length) paintChanges(changes)
+  }
+  updateHover(c)
+})
+
+function endStroke() {
+  if (!drawing) return
+  drawing = false
+  lastCell = null
+  autosaveDraft()
+}
+cv.addEventListener('pointerup', endStroke)
+cv.addEventListener('pointercancel', endStroke)
+cv.addEventListener('pointerleave', () => { if (!drawing) updateHover(null) })
+cv.addEventListener('contextmenu', (e) => e.preventDefault())
+
+document.querySelectorAll('[data-tool]').forEach((b) => { b.onclick = () => setTool(b.dataset.tool) })
+document.querySelectorAll('[data-brush]').forEach((b) => { b.onclick = () => setBrush(Number(b.dataset.brush)) })
+sizeSel.onchange = () => applySize(Number(sizeSel.value) || 32)
+document.getElementById('zoomIn').onclick = () => applyZoom(zoom * 2, false)
+document.getElementById('zoomOut').onclick = () => applyZoom(zoom / 2, false)
+document.getElementById('zoomFit').onclick = fitZoom
+picker.oninput = (e) => setColor(e.target.value)
+gridBtn.onclick = toggleGrid
+undoBtn.onclick = undo
+redoBtn.onclick = redo
+document.getElementById('clear').onclick = clearCanvas
+document.getElementById('export').onclick = exportPng
+document.getElementById('copy').onclick = copyGrid
+document.getElementById('aiCopy').onclick = copyAiPrompt
+document.getElementById('loadGrid').onclick = loadFromDump
+document.getElementById('save').onclick = saveToGallery
+scaleEl.oninput = updateScaleLabel
+
+window.addEventListener('keydown', (e) => {
+  const active = document.activeElement
+  if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT' || active.isContentEditable)) return
+  const key = e.key.toLowerCase()
+  if ((e.ctrlKey || e.metaKey) && key === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return }
+  if ((e.ctrlKey || e.metaKey) && key === 'y') { e.preventDefault(); redo(); return }
+  if ((e.ctrlKey || e.metaKey) && key === 's') { e.preventDefault(); saveToGallery(); return }
+  if (e.ctrlKey || e.metaKey || e.altKey) return
+  if (key === 'b') setTool('pen')
+  else if (key === 'e') setTool('eraser')
+  else if (key === 'i') setTool('picker')
+  else if (key === 'g') toggleGrid()
+  else if (key === '[') setBrush(brush - 1)
+  else if (key === ']') setBrush(brush + 1)
+})
+
+new ResizeObserver(() => {
+  if (!fitMode) return
+  const vw = viewport && viewport.clientWidth ? viewport.clientWidth - 8 : 560
+  if (Math.abs(vw - lastFitWidth) > 4) fitZoom()
+}).observe(viewport)
+window.addEventListener('resize', () => { if (fitMode) fitZoom() })
+
+/* ---------------- 启动 ---------------- */
+
+buildPalette()
+setColor('#ffffff')
+updateScaleLabel()
+syncCanvas()
+syncSizeSelect()
+updateInfo()
+fitZoom()
+if (restoreDraft()) {
+  toast('已恢复上次的草稿，点「清空」重来')
+}
+loadGallery()
+// AI 画完会直接落进画廊，这边自己刷新，不用手动点
+setInterval(() => { if (!document.hidden) loadGallery() }, 8000)
+</script>
+</body>
+</html>

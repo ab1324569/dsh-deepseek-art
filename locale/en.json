@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Pixel Art Studio",
+    "description": "A local pixel-art canvas in the sidebar: palette, brush sizes, grid lines, undo/redo, draft auto-recovery, gallery and PNG export, plus a draw_pixel_art tool for the model. Fully offline and free."
+  }
+}

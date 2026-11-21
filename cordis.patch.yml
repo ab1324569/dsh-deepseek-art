@@ -1,0 +1,4 @@
+# dsh-pixel-art bundle patch
+- insert:
+    - id: dsh-pixel-art
+      name: dsh-pixel-art
