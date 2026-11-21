@@ -17,6 +17,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { DEFAULT_PALETTE, renderPixelArt } from './render.js'
 import { renderScene, spriteCatalog } from './scene.js'
 import { formatReport, inspectArt } from './inspect.js'
+import { findLessons, LESSONS } from './lessons.js'
 
 export const name = 'dsh-pixel-art'
 export const inject = ['tools', 'attachments', 'webServer']
@@ -391,6 +392,34 @@ export function apply(ctx, config = {}) {
         }
       } catch (error) {
         return { ok: false, message: `检查失败：${error instanceof Error ? error.message : String(error)}` }
+      }
+    },
+  })))
+
+  // 经验库：画之前先查，画完再追加
+  registerToolWhenReady(ctx, 'pixel_lessons', () => ctx.tools.register(defineTool({
+    name: 'pixel_lessons',
+    description:
+      '查插件里积累的像素画经验（不是文档，是每次画完追加的结论）。画之前先按主题查一遍：苹果/猫/蛋糕/人像/对称/自检/背景。' +
+      '返回可照做的做法（层级顺序、坐标偏移、颜色层次），能直接落到 op 上。',
+    parameters: {
+      query: { type: 'string', description: '关键词，中文英文都行，比如「苹果 高光」「猫 对称」；不传返回最近几条' },
+      limit: { type: 'number', description: '最多返回几条，默认 6' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args, value) => [{ type: 'text', text: value.message }],
+    },
+    async execute(args) {
+      const items = findLessons(args.query, Math.max(1, Math.min(20, Number(args.limit) || 6)))
+      return {
+        ok: true,
+        total: LESSONS.length,
+        lessons: items,
+        message: items.length
+          ? `[lessons] 共 ${LESSONS.length} 条，命中 ${items.length} 条：\n` +
+            items.map((l) => `- ${l.title}\n  ${l.tip}`).join('\n')
+          : '还没有相关经验',
       }
     },
   })))
