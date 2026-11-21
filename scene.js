@@ -298,7 +298,7 @@ function applyOp(cells, width, height, op, index, named) {
     if (!Array.isArray(op.ops) || !op.ops.length) {
       throw new Error(`${where} 的 mirror 需要 ops 数组`)
     }
-    const axis = Number.isFinite(Number(op.axis)) ? Number(op.axis) : width / 2
+    const axis = Number.isFinite(Number(op.axis)) ? Number(op.axis) : (width - 1) / 2
     const prev = recorder
     const rec = new Map()
     recorder = rec

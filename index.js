@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { DEFAULT_PALETTE, renderPixelArt } from './render.js'
 import { renderScene, spriteCatalog } from './scene.js'
+import { formatReport, inspectArt } from './inspect.js'
 
 export const name = 'dsh-pixel-art'
 export const inject = ['tools', 'attachments', 'webServer']
@@ -336,6 +337,60 @@ export function apply(ctx, config = {}) {
           (galleryName
             ? '已同步进画板画廊，面板里点一下就能接着改'
             : '（非正方形画布，没进画廊）'),
+      }
+    },
+  })))
+
+  // 自检：只输出事实，不替模型改坐标
+  registerToolWhenReady(ctx, 'inspect_pixel_art', () => ctx.tools.register(defineTool({
+    name: 'inspect_pixel_art',
+    description:
+      '把画布反序列化成「带坐标的字符网格」并做结构诊断，全程不靠识图。' +
+      'op 可以带 label（left_eye / right_eye / mouth / nose），工具只返回事实和违规项：' +
+      '双眼中心 y 差、嘴是否在双眼下方、鼻点是否在两眼之间、鼻嘴先后、左右对称度、覆盖率、用色数。' +
+      '它不会替你改坐标——读完之后改哪个 op、改几像素，由你决定，改完再调一次本工具复核。' +
+      '适合「生成 → 自检 → 只改被定位到的参数 → 再自检」的收敛循环。',
+    parameters: {
+      ops: {
+        type: 'array',
+        items: { type: 'object', additionalProperties: true },
+        description: '要检查的 op 列表（和 draw_pixel_scene 同一套形状，可带 label）',
+      },
+      grid: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '也可以直接给字符网格（传了 ops 就忽略 grid）',
+      },
+      width: { type: 'number', description: '画布宽，默认 32' },
+      height: { type: 'number', description: '画布高，默认跟宽一样' },
+      background: { type: 'string', description: '底色 #RRGGBB（可选）' },
+      palette: { type: 'object', additionalProperties: true, description: '自定义字符 → 颜色（可选）' },
+      maxRows: { type: 'number', description: '文本网格最多行数，默认 64，超过会按步长降采样' },
+      checkSymmetry: { type: 'boolean', description: '是否算左右对称度，默认 true' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args, value) => [{ type: 'text', text: value.message }],
+    },
+    async execute(args) {
+      try {
+        const report = inspectArt({
+          width: args.width,
+          height: args.height,
+          ops: Array.isArray(args.ops) ? args.ops : null,
+          grid: Array.isArray(args.grid) ? args.grid : null,
+          palette: cleanPalette(args.palette),
+          background: typeof args.background === 'string' ? args.background : '',
+          maxRows: args.maxRows,
+          checkSymmetry: args.checkSymmetry !== false,
+        })
+        return {
+          ok: report.ok,
+          ...report,
+          message: formatReport(report),
+        }
+      } catch (error) {
+        return { ok: false, message: `检查失败：${error instanceof Error ? error.message : String(error)}` }
       }
     },
   })))
