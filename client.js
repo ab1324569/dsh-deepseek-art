@@ -1,5 +1,5 @@
 /**
- * dsh-pixel-art — 客户端半边（0.3.0）。
+ * dsh-deepseek-art — 客户端半边（0.3.0）。
  *
  * 左侧栏「像素画板」入口 + 中间整页面板：面板只负责仪表盘（作品数 / 今日 / 可编辑 / 最新）
  * 和把画板页嵌进来，真正的画布在 board.html 里，样式与数据都落在插件自己的路线上。
@@ -7,7 +7,7 @@
  * 设计规范：白底 + #111 前景，只用黑白灰；强调/选中用反色；图标用 SVG；圆角 12/8/4；边框 1px；正文 13px。
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-pixel-art',
+  id: 'dsh-deepseek-art',
   factory: (require) => {
     var module = { exports: {} }
     var exports = module.exports
@@ -18,8 +18,8 @@ window.__ModuleLoader__.load({
 
     const inject = ['slots']
 
-    const API = '/dsh-pixel-art'
-    const KEY = 'dsh-pixel-art'
+    const API = '/dsh-deepseek-art'
+    const KEY = 'dsh-deepseek-art'
 
     const CSS = `
       .pix-page{
@@ -129,7 +129,7 @@ window.__ModuleLoader__.load({
         const timer = setInterval(pull, 15000)
         const onMessage = (e) => {
           if (e.origin !== window.location.origin) return
-          if (e.data && e.data.type === 'dsh-pixel-art:changed') pull()
+          if (e.data && e.data.type === 'dsh-deepseek-art:changed') pull()
         }
         const onVisible = () => { if (!document.hidden) pull() }
         window.addEventListener('message', onMessage)
@@ -150,7 +150,7 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'pix-page' }, [
         h('div', { className: 'pix-head', key: 'head' }, [
           h('h1', { key: 't' }, '像素画板'),
-          h('span', { className: 'pix-pill', key: 'p' }, 'dsh-pixel-art'),
+          h('span', { className: 'pix-pill', key: 'p' }, 'dsh-deepseek-art'),
           h('span', { className: 'pix-spacer', key: 'sp' }),
           h('span', { className: 'pix-hint', key: 'h' }, '手写 PNG · 离线渲染 · 对话里说「画一个…」也行'),
           h('a', {
@@ -218,7 +218,7 @@ window.__ModuleLoader__.load({
     function apply(ctx) {
       const slots = ctx.get('slots')
       if (!slots) {
-        console.error('[dsh-pixel-art] slots 服务不可用，界面入口没挂上')
+        console.error('[dsh-deepseek-art] slots 服务不可用，界面入口没挂上')
         return
       }
 

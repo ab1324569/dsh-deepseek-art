@@ -1,4 +1,4 @@
-# dsh-pixel-art bundle patch
+# dsh-deepseek-art bundle patch
 - insert:
-    - id: dsh-pixel-art
-      name: dsh-pixel-art
+    - id: dsh-deepseek-art
+      name: dsh-deepseek-art

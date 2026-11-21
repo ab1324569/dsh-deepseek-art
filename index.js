@@ -1,5 +1,5 @@
 /**
- * dsh-pixel-art：给 DeepSeek Harness 注册画像素画的工具。
+ * dsh-deepseek-art：给 DeepSeek Harness 注册画像素画的工具。
  *
  * 分工：模型负责「画什么」——给字符网格和调色板；插件负责「怎么变成图」——
  * 逐格填色、最近邻放大、手写 PNG 编码、挂附件、落盘。
@@ -19,7 +19,7 @@ import { renderScene, spriteCatalog } from './scene.js'
 import { formatReport, inspectArt } from './inspect.js'
 import { findLessons, LESSONS } from './lessons.js'
 
-export const name = 'dsh-pixel-art'
+export const name = 'dsh-deepseek-art'
 export const inject = ['tools', 'attachments', 'webServer']
 
 function outputDir() {
@@ -38,7 +38,7 @@ function logRegister(line) {
 function registerToolWhenReady(ctx, label, register) {
   let done = false
   const report = (error, stage) => {
-    const text = `[dsh-pixel-art] ${label} 注册失败(${stage})：${error instanceof Error ? error.message : String(error)}`
+    const text = `[dsh-deepseek-art] ${label} 注册失败(${stage})：${error instanceof Error ? error.message : String(error)}`
     console.error(text)
     logRegister('FAIL ' + stage + ' ' + (error instanceof Error ? error.message : String(error)))
     try {
@@ -82,7 +82,7 @@ function registerToolWhenReady(ctx, label, register) {
     }
   }, 800)
   try {
-    if (typeof ctx.effect === 'function') ctx.effect(() => () => clearInterval(timer), 'dsh-pixel-art: register poll')
+    if (typeof ctx.effect === 'function') ctx.effect(() => () => clearInterval(timer), 'dsh-deepseek-art: register poll')
   } catch { /* effect 缺席不连坐 */ }
 
   // 3) 老宿主：直接同步试一次
@@ -123,7 +123,7 @@ function saveGalleryRecord(dir, png, record) {
     writeFileSync(join(dir, name + '.json'), JSON.stringify({ version: 2, ...record, savedAt: Date.now() }))
     return name
   } catch (error) {
-    console.error('[dsh-pixel-art] 存画廊失败：', error instanceof Error ? error.message : String(error))
+    console.error('[dsh-deepseek-art] 存画廊失败：', error instanceof Error ? error.message : String(error))
     return null
   }
 }
@@ -135,7 +135,7 @@ async function attachImage(ctx, png, name) {
       return await att.saveImage({ data: png, mediaType: 'image/png', name })
     }
   } catch (error) {
-    console.error('[dsh-pixel-art] 挂附件失败（图已在磁盘上）：', error instanceof Error ? error.message : String(error))
+    console.error('[dsh-deepseek-art] 挂附件失败（图已在磁盘上）：', error instanceof Error ? error.message : String(error))
   }
   return null
 }
@@ -424,13 +424,13 @@ export function apply(ctx, config = {}) {
     },
   })))
 
-  console.log(`[dsh-pixel-art] 已加载，输出目录：${dir}`)
+  console.log(`[dsh-deepseek-art] 已加载，输出目录：${dir}`)
 
-  // ---- 网页画板 + 画廊：/dsh-pixel-art ----
+  // ---- 网页画板 + 画廊：/dsh-deepseek-art ----
   const registerBoard = () => {
     const webServer = typeof ctx.get === 'function' ? ctx.get('webServer') : null
     if (!webServer || typeof webServer.register !== 'function') {
-      console.error('[dsh-pixel-art] webServer 不可用，画板路由没挂上')
+      console.error('[dsh-deepseek-art] webServer 不可用，画板路由没挂上')
       return
     }
     const boardFile = join(dirname(fileURLToPath(import.meta.url)), 'board.html')
@@ -471,10 +471,10 @@ export function apply(ctx, config = {}) {
 
     ctx.effect(() => webServer.register({
       kind: 'prefix',
-      path: '/dsh-pixel-art',
+      path: '/dsh-deepseek-art',
       async handler(req, res) {
         const url = new URL(req.url || '/', 'http://localhost')
-        const sub = url.pathname.slice('/dsh-pixel-art'.length) || '/'
+        const sub = url.pathname.slice('/dsh-deepseek-art'.length) || '/'
 
         if (sub === '/' || sub === '') {
           // 每次现读：改完 board.html 刷新页面就能看到，不用重启宿主
@@ -564,7 +564,7 @@ export function apply(ctx, config = {}) {
         res.end('not found')
       },
     }))
-    console.log('[dsh-pixel-art] 画板已挂到 /dsh-pixel-art')
+    console.log('[dsh-deepseek-art] 画板已挂到 /dsh-deepseek-art')
   }
   if (typeof ctx.inject === 'function') {
     try { ctx.inject(['webServer'], registerBoard) } catch { registerBoard() }

@@ -1,4 +1,4 @@
-# dsh-pixel-art
+# dsh-deepseek-art
 
 在 DeepSeek Harness 里画像素画：左侧栏一整页的本地画板 + 两条给模型用的工具。
 
@@ -30,10 +30,10 @@
 
 ## 页面
 
-- `/dsh-pixel-art` 独立画板页
-- `/dsh-pixel-art/api/list` 画廊列表
-- `/dsh-pixel-art/api/save` 保存（POST）
-- `/dsh-pixel-art/api/delete` 删除（POST）
+- `/dsh-deepseek-art` 独立画板页
+- `/dsh-deepseek-art/api/list` 画廊列表
+- `/dsh-deepseek-art/api/save` 保存（POST）
+- `/dsh-deepseek-art/api/delete` 删除（POST）
 
 ## 快捷键
 

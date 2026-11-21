@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>像素画板 · dsh-pixel-art</title>
+<title>像素画板 · dsh-deepseek-art</title>
 <style>
   /* 设计规范：白底 + #111 前景，只用黑白灰；强调/选中用反色；圆角 12/8/4；边框 1px；正文 13px */
   :root {
@@ -201,7 +201,7 @@
 <body>
 <header>
   <h1>像素画板</h1>
-  <span class="tag">dsh-pixel-art</span>
+  <span class="tag">dsh-deepseek-art</span>
   <span class="hint">拖拽作画 · 右键擦除 · Ctrl+Z 撤销 · 画完点「存进画廊」</span>
 </header>
 
@@ -312,7 +312,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const BASE = '/dsh-pixel-art'
+const BASE = '/dsh-deepseek-art'
 // 被 DSH 的 iframe 内嵌时（?embed=1），去掉自己的页头，避免和外层标题重复
 const EMBED = new URLSearchParams(location.search).get('embed') === '1'
 if (EMBED) {
@@ -395,7 +395,7 @@ const viewport = document.getElementById('viewport')
 const sizeSel = document.getElementById('sizeSel')
 const zoomLabel = document.getElementById('zoomLabel')
 
-const DRAFT_KEY = 'dsh-pixel-art:draft:v2'
+const DRAFT_KEY = 'dsh-deepseek-art:draft:v2'
 let size = 32
 let grid = emptyGrid(32)
 let color = '#ffffff'
@@ -435,7 +435,7 @@ function toast(msg) {
 function notifyParent() {
   try {
     if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'dsh-pixel-art:changed' }, location.origin)
+      window.parent.postMessage({ type: 'dsh-deepseek-art:changed' }, location.origin)
     }
   } catch { /* 独立页里没有父窗口 */ }
 }
