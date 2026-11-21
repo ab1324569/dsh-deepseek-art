@@ -247,6 +247,9 @@ export function apply(ctx, config = {}) {
       "{shape:'fill', color} 铺满；" +
       "{shape:'rect', x,y,w,h, color, fill?} 矩形（fill:false 只画框）；" +
       "{shape:'line', x1,y1,x2,y2, color, width?} 直线（width 1–16）；" +
+      "{shape:'curve', points:[[x,y]×3|4], color, width?, fill?} 贝塞尔曲线（3 点二次 / 4 点三次，fill 闭合填充）；" +
+      "{shape:'stroke', points:[[x,y],...], color, width?, closed?} 折线路径（2 点以上）；" +
+      "{shape:'mirror', axis?, ops:[...]} 把嵌套 op 镜像到另一侧（轴默认画布中线）；" +
       "{shape:'circle', x,y,r, color, fill?} 圆（x/y 是圆心）；" +
       "{shape:'ellipse', x,y,rx,ry, color, fill?} 椭圆；" +
       "{shape:'polygon', points:[[x,y],...], color, fill?} 多边形/三角形（fill:false 只画边）；" +
@@ -255,7 +258,7 @@ export function apply(ctx, config = {}) {
       "{shape:'grid', rows:['..','..'], x,y} 小范围逐格画（空格和 . 透明）。" +
       `内置精灵（名 宽×高）：${spriteCatalog().join('、')}。` +
       '常用色：#8ec9ff 天蓝 #d6ecff 浅蓝 #ffffff 白 #5fa73a 草 #4a8a2e 深草 #8b5a2b 土 #a83c2c 红屋顶 #ffe066 黄 #2a2a2a 近黑 #e8b48a 肤 #d8a3c0 粉。' +
-      '画法建议：先铺天空和地面，再摆精灵，最后用 circle/ellipse/polygon/line/grid 补细节；圆形叠圆形再错开一点就是明暗和体积，dither 能抹平色块过渡；正方形画布会自动进画板画廊。',
+      '画法建议：先铺天空和地面，再摆精灵，最后用 curve/circle/polygon/grid 补细节；对称的东西只画半边再包一层 mirror，token 直接减半；圆形叠圆形再错开一点就是明暗和体积，dither 能抹平色块过渡；正方形画布会自动进画板画廊。',
     parameters: {
       ops: {
         type: 'array',

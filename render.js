@@ -141,14 +141,20 @@ export function renderPixelArt({
 
   const map = { ...DEFAULT_PALETTE, ...palette }
   const bg = parseColor(background)
+  const empty = bg || [0, 0, 0, 0]
+  // 每个字符只解析一次颜色；逐像素再跑正则就是自找 280ms
+  const lookup = Object.create(null)
+  for (const ch of Object.keys(map)) {
+    const color = parseColor(map[ch])
+    if (color) lookup[ch] = color
+  }
 
   const raw = Buffer.alloc(width * height * 4)
   for (let y = 0; y < height; y++) {
+    const row = rows[y]
     for (let x = 0; x < width; x++) {
-      const ch = rows[y][x]
-      let color = null
-      if (ch !== transparent) color = parseColor(map[ch]) || null
-      if (!color) color = bg || [0, 0, 0, 0]
+      const ch = row[x]
+      const color = (ch === transparent ? empty : lookup[ch]) || empty
       const i = (y * width + x) * 4
       raw[i] = color[0]
       raw[i + 1] = color[1]
@@ -166,16 +172,22 @@ export function renderPixelArt({
   const outW = width * factor
   const outH = height * factor
   const scaled = Buffer.alloc(outW * outH * 4)
-  for (let y = 0; y < outH; y++) {
-    const sy = (y / factor) | 0
-    for (let x = 0; x < outW; x++) {
-      const sx = (x / factor) | 0
+  // 每条源行展开一次，再复制到 factor 条目标行
+  const rowBuf = Buffer.alloc(outW * 4)
+  for (let sy = 0; sy < height; sy++) {
+    for (let sx = 0; sx < width; sx++) {
       const si = (sy * width + sx) * 4
-      const di = (y * outW + x) * 4
-      scaled[di] = raw[si]
-      scaled[di + 1] = raw[si + 1]
-      scaled[di + 2] = raw[si + 2]
-      scaled[di + 3] = raw[si + 3]
+      const base = sx * factor * 4
+      for (let k = 0; k < factor; k++) {
+        const di = base + k * 4
+        rowBuf[di] = raw[si]
+        rowBuf[di + 1] = raw[si + 1]
+        rowBuf[di + 2] = raw[si + 2]
+        rowBuf[di + 3] = raw[si + 3]
+      }
+    }
+    for (let ry = 0; ry < factor; ry++) {
+      rowBuf.copy(scaled, ((sy * factor + ry) * outW) * 4)
     }
   }
 

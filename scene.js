@@ -65,11 +65,15 @@ function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n))
 }
 
+// mirror 用：嵌套 op 画过的格子记在这里，等画完再镜像
+let recorder = null
+
 function setCell(cells, x, y, hex) {
   if (y < 0 || y >= cells.length) return
   const row = cells[y]
   if (x < 0 || x >= row.length) return
   row[x] = hex
+  if (recorder) recorder.set(y * row.length + x, [x, y, hex])
 }
 
 function fillRect(cells, x, y, w, h, hex) {
@@ -119,9 +123,9 @@ function drawEllipse(cells, cx, cy, rx, ry, hex, filled) {
   }
 }
 
-function normalizePoints(input, where) {
-  if (!Array.isArray(input) || input.length < 3) {
-    throw new Error(`${where} 的 polygon 需要至少 3 个点，格式 [[x,y],[x,y],...]`)
+function normalizePoints(input, where, min = 3, label = 'polygon') {
+  if (!Array.isArray(input) || input.length < min) {
+    throw new Error(`${where} 的 ${label} 需要至少 ${min} 个点，格式 [[x,y],[x,y],...]`)
   }
   return input.map((point) => {
     if (Array.isArray(point) && point.length >= 2) {
@@ -130,8 +134,36 @@ function normalizePoints(input, where) {
     if (point && typeof point === 'object') {
       return [toInt(point.x, 0), toInt(point.y, 0)]
     }
-    throw new Error(`${where} 的 polygon 点「${JSON.stringify(point)}」看不懂`)
+    throw new Error(`${where} 的 ${label} 点「${JSON.stringify(point)}」看不懂`)
   })
+}
+
+/** 把 3/4 个控制点的贝塞尔展平成折线（32 段） */
+function flattenCurve(points, where) {
+  if (points.length !== 3 && points.length !== 4) {
+    throw new Error(`${where} 的 curve 要 3 或 4 个点（二次 / 三次贝塞尔）`)
+  }
+  const steps = 32
+  const out = []
+  if (points.length === 3) {
+    const [a, b, c] = points
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps
+      const u = 1 - t
+      out.push([u * u * a[0] + 2 * u * t * b[0] + t * t * c[0], u * u * a[1] + 2 * u * t * b[1] + t * t * c[1]])
+    }
+  } else {
+    const [a, b, c, d] = points
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps
+      const u = 1 - t
+      out.push([
+        u * u * u * a[0] + 3 * u * u * t * b[0] + 3 * u * t * t * c[0] + t * t * t * d[0],
+        u * u * u * a[1] + 3 * u * u * t * b[1] + 3 * u * t * t * c[1] + t * t * t * d[1],
+      ])
+    }
+  }
+  return out.map(([x, y]) => [Math.round(x), Math.round(y)])
 }
 
 function drawPolygon(cells, points, hex, filled) {
@@ -232,6 +264,56 @@ function applyOp(cells, width, height, op, index, named) {
     return
   }
 
+  if (shape === 'curve') {
+    const pts = normalizePoints(op.points, where, 3, 'curve')
+    const flat = flattenCurve(pts, where)
+    const hex = color(op.color)
+    if (op.fill) {
+      drawPolygon(cells, flat, hex, true)
+    } else {
+      const size = clamp(toInt(op.width, 1), 1, 16)
+      for (let i = 0; i + 1 < flat.length; i++) {
+        drawLine(cells, flat[i][0], flat[i][1], flat[i + 1][0], flat[i + 1][1], size, hex)
+      }
+    }
+    return
+  }
+
+  if (shape === 'stroke') {
+    const pts = normalizePoints(op.points, where, 2, 'stroke')
+    const hex = color(op.color)
+    const size = clamp(toInt(op.width, 1), 1, 16)
+    for (let i = 0; i + 1 < pts.length; i++) {
+      drawLine(cells, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], size, hex)
+    }
+    if (op.closed && pts.length > 2) {
+      const a = pts[pts.length - 1]
+      const b = pts[0]
+      drawLine(cells, a[0], a[1], b[0], b[1], size, hex)
+    }
+    return
+  }
+
+  if (shape === 'mirror') {
+    if (!Array.isArray(op.ops) || !op.ops.length) {
+      throw new Error(`${where} 的 mirror 需要 ops 数组`)
+    }
+    const axis = Number.isFinite(Number(op.axis)) ? Number(op.axis) : width / 2
+    const prev = recorder
+    const rec = new Map()
+    recorder = rec
+    try {
+      for (let i = 0; i < op.ops.length; i++) applyOp(cells, width, height, op.ops[i], i, named)
+    } finally {
+      recorder = prev
+    }
+    for (const [x, y, hex] of rec.values()) {
+      const mx = Math.round(2 * axis - x)
+      if (mx >= 0 && mx < width) setCell(cells, mx, y, hex)
+    }
+    return
+  }
+
   if (shape === 'polygon') {
     drawPolygon(cells, normalizePoints(op.points, where), color(op.color), op.fill !== false)
     return
@@ -304,7 +386,7 @@ function applyOp(cells, width, height, op, index, named) {
     return
   }
 
-  throw new Error(`${where} 的 shape「${op.shape}」不认识，可选 fill / rect / line / circle / ellipse / polygon / dither / grid / sprite`)
+  throw new Error(`${where} 的 shape「${op.shape}」不认识，可选 fill / rect / line / curve / stroke / mirror / circle / ellipse / polygon / dither / grid / sprite`)
 }
 
 /**

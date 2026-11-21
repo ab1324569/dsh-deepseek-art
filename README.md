@@ -4,15 +4,27 @@
 
 模型不写 prompt，而是写**结构化的形状 / 字符网格**；插件在本地零依赖渲染成 PNG，并同时存进画板画廊——人和模型都能接着改。
 
-![cathead template](docs/cathead.png)
+![cat card](docs/catcard.png)
 
-> 上图为 64×64 模板 `cathead` 放大 3 倍后的效果，全部由代码渲染，没有任何生图模型参与。
+> 512×512 角色卡：cathead 模板 + 贝塞尔彩旗 + 小蛋糕，全部由代码渲染。
+
+![cathead template](docs/cathead.png)
 
 ## 为什么
 
 DeepSeek 这类纯文本模型不能出图。常见做法是接生图 API，但那要钱、要网络、要模型。
 
 这个插件换了一条路：把「画什么」交给模型（文本），把「怎么变成图」交给本地代码（确定性渲染）。输出不是一张死图，而是**可继续编辑的网格数据**——这一点是扩散模型给不了的。
+
+## 性能（0.6.0 实测）
+
+| 项目 | 0.5.0 | 0.6.0 |
+| --- | --- | --- |
+| 1024 网格渲染（scale 1） | 331 ms | ~50 ms |
+| 1024 网格渲染（scale 2） | 377 ms | ~90 ms |
+| PNG 编码 2048² | ~55 ms | ~55 ms |
+
+做法：调色板先解析一次成查表（原来逐像素跑正则，1M 次 = 280ms），放大改成「展开一行再复制」。
 
 ## 安装
 
@@ -35,16 +47,17 @@ DeepSeek 这类纯文本模型不能出图。常见做法是接生图 API，但�
 
 `width/height (1–1024)`、`scale`、`background`、`palette`、`ops[]`。
 
-op：
-
 - `fill` 铺满
 - `rect` 矩形（`fill:false` 只画边）
 - `line` 直线（`width` 1–16）
-- `circle` / `ellipse`（`fill:false` 只画边）
-- `polygon` 任意多边形（扫描线填充）
-- `dither` 点阵填充（`density` 25/50/75）
+- `curve` 贝塞尔曲线（3 点二次 / 4 点三次，可填充）
+- `stroke` 折线路径（2 点以上，可闭合）
+- `mirror` 把嵌套 op 镜像到另一侧（对称图形只画半边）
+- `circle` / `ellipse`
+- `polygon` 任意多边形
+- `dither` 点阵填充（25/50/75）
 - `grid` 小范围字符网格
-- `sprite` 内置精灵 / 模板（`name`, `x`, `y`, `scale` 1–8, `flipX`, `tint`）
+- `sprite` 内置精灵 / 模板
 
 ### `draw_pixel_art`
 
@@ -76,9 +89,10 @@ op：
 
 - [x] 1024×1024 画布
 - [x] 模板化头像（`cathead`）
+- [x] 调色板查表（1024 渲染 331ms → 50ms）
+- [x] `curve` / `stroke` / `mirror`
 - [ ] 表情变体 / 女孩脸模板
-- [ ] bezier 曲线 op
-- [ ] 可选超采样（`smooth`）
+- [ ] bezier 抗锯齿 + 可选超采样（`smooth`）
 
 ## License
 
